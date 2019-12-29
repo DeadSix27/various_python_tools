@@ -40,12 +40,12 @@ INDEX_EXTENSION = '.db'
 # Drive's to be ignored, e.g C:, only write the letter and :, e.g 'C:'
 # 
 # Default: C:
-# IGNORED_DRIVES = ('C:')
+IGNORED_DRIVES = ('C:')
 
 # Custom locations, e.g network shares: \\\\192.168.178.45\\someShare\\someFolderInThere
 # 
 # Default: ()
-# CUSTOM_PLACES = ()
+CUSTOM_PLACES = ()
 ```
 
 Full usage:
