@@ -3,9 +3,8 @@
 
 ##### Simple tool that indexes every available drive and its files. (Configurable)
 
-The benefit (for me) is that it's faster and more reliable than any default search on Windows¹, it also has wildcard support and can easily used via the Terminal.
-It's faster because it only indexes when asked to, e.g it won't be "live".
-The primary use case would be to search archives/disks/systems that rarely change.
+The benefit (for me) is that it's faster and more reliable than any default search on Windows¹, it also has wildcard support and can easily be used via the Terminal.
+It's faster because it only indexes when asked to, e.g it won't be "live", the use case for this would be to search archives/disks/systems that rarely change.
 
 
 ### Basic usage:
