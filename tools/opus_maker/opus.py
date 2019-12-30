@@ -133,7 +133,7 @@ import sys
 import shutil
 
 class OpusMaker:
-	def extractCover(self, file_path: Path) -> Path:
+	def convertCoverToJpg(self, file_path: Path) -> Path:
 		temp_out_path = file_path.change_name(file_path.stem + "opusthing_xyz.jpg")
 		cmd = [
 			'ffmpeg',
@@ -151,9 +151,15 @@ class OpusMaker:
 			'mjpeg',
 			str(temp_out_path),
 		]
-		_ = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+		try:
+			_ = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+		except subprocess.CalledProcessError as e:
+			print(e.output.decode("utf-8"))
+			print("Converting Cover to JPG Failed, error above.")
+			exit(1)
+
 		return temp_out_path
-	
+
 	def getFfprobe(self, file_path: Path) -> dict:
 		cmd = [
 			'ffprobe',
@@ -188,7 +194,7 @@ class OpusMaker:
 
 	def getCoverFromFile(self, file_path: Path) -> Path:
 		if self.hasCover(file_path):
-			return self.extractCover(file_path)
+			return self.extractCoverFromFile(file_path)
 		return None
 
 	def encodeFile(self, original_file: Path) -> Path:
@@ -209,9 +215,10 @@ class OpusMaker:
 			cover = self.getCoverFromFile(original_file)
 			if not cover:
 				cover = self.getCoverFromFolder(original_file)
-				print(F"Using cover from folder: {cover}")
+				print(F"Using cover from folder: {original_file.parent.name}")
+				cover = self.convertCoverToJpg(original_file)
 			else:
-				print(F"Using cover from file: {cover}")
+				print(F"Using cover from file: {original_file}")
 
 		cmd1 = [
 			'ffmpeg',
@@ -292,6 +299,7 @@ class OpusMaker:
 		ignore_mime: bool = None,
 		have_pyperclip: bool = None
 	) -> None:
+		self.extractCoverFromFile = self.convertCoverToJpg
 		errors = []
 		# Settings
 		self.opusVbr = opus_vbr
