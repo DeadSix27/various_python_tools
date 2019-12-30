@@ -118,6 +118,13 @@ BASE_URL = None
 #
 WITH_COVER = True
 
+#
+# When batch-encoding a folder, every file with an extension not in this list will be ignored.
+#
+# Default: ('.mkv', '.mka', '.mp4', '.flac', '.m4a', '.mp3', '.aac', '.wav', '.oga', '.ogg', '.alac')
+BATCH_EXTENSIONS = ('.mkv', '.mka', '.mp4', '.flac', '.m4a', '.mp3', '.aac', '.wav', '.oga', '.ogg', '.alac')
+
+
 # ########################### CODE ############################
 # #############################################################
 # ################     Only change this if      ###############
@@ -155,7 +162,8 @@ class OpusMaker:
 			_ = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
 		except subprocess.CalledProcessError as e:
 			print(e.output.decode("utf-8"))
-			print("Converting Cover to JPG Failed, error above.")
+			print(F"\nConverting Cover '{file_path}' to JPG Failed, error above, command was:")
+			print(subprocess.list2cmdline(cmd))
 			exit(1)
 
 		return temp_out_path
@@ -168,10 +176,17 @@ class OpusMaker:
 			'-print_format',
 			'json',
 			'-loglevel',
-			'panic',
+			'error',
 			str(file_path),
 		]
-		return json.loads(subprocess.check_output(cmd))
+		try:
+			rawJson = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+		except subprocess.CalledProcessError as e:
+			print(e.output.decode("utf-8"))
+			print("\nAquiring FFProbe data failed, see error above, command was:")
+			print(subprocess.list2cmdline(cmd))
+			exit(1)
+		return json.loads(rawJson)
 
 	def getCoverFromFolder(self, file_path: Path) -> Path:
 		foundFile = None
@@ -215,8 +230,8 @@ class OpusMaker:
 			cover = self.getCoverFromFile(original_file)
 			if not cover:
 				cover = self.getCoverFromFolder(original_file)
-				print(F"Using cover from folder: {original_file.parent.name}")
-				cover = self.convertCoverToJpg(original_file)
+				print(F"Using cover from folder: {cover}")
+				cover = self.convertCoverToJpg(cover)
 			else:
 				print(F"Using cover from file: {original_file}")
 
@@ -286,7 +301,7 @@ class OpusMaker:
 		mime = mime.from_file(str(path))
 		return mime
 	
-	def __init__(self, original_file: Path,
+	def __init__(self, input_path: Path,
 		start_time: str = None,
 		end_time: str = None,
 		output_dir: Path = None,
@@ -297,7 +312,8 @@ class OpusMaker:
 		with_cover: bool = None,
 		have_mime: bool = None,
 		ignore_mime: bool = None,
-		have_pyperclip: bool = None
+		have_pyperclip: bool = None,
+		batch_extensions: bool = None,
 	) -> None:
 		self.extractCoverFromFile = self.convertCoverToJpg
 		errors = []
@@ -309,11 +325,12 @@ class OpusMaker:
 		self.bitrate = bit_rate
 		self.withCover = with_cover
 		self.ignoreMime = ignore_mime
+		self.batchExtensions = batch_extensions
 
 		# Commandline args
 		self.startTime = start_time
 		self.endTime = end_time
-		self.originalFile = original_file
+		self.inputPath = input_path
 
 		# ###
 		self.haveMime = have_mime
@@ -350,30 +367,51 @@ class OpusMaker:
 			exit(1)
 
 		try:
-			self.originalFile = Path(self.originalFile)
+			self.inputPath = Path(self.inputPath)
 		except Exception:
-			print(F"{self.originalFile} is not a valid audio/video file path.")
+			print(F"{self.inputPath} is not a valid audio/video file path.")
 			exit(1)
-		if not self.originalFile.exists():
-			print(F"File {self.originalFile} does not exist.")
+
+		if not self.inputPath.exists():
+			print(F"File or Folder {self.inputPath} does not exist.")
 			exit(1)
 
 		if self.haveMime:
-			if not self.ignoreMime and not self .mime(self.originalFile).startswith(("audio/", "video/")):
-				print(F"File {self.originalFile} is no video or audio file.")
+			if not self.ignoreMime and not self .mime(self.inputPath).startswith(("audio/", "video/")):
+				print(F"File {self.inputPath} is no video or audio file.")
 				exit(1)
 
-		output_file_path = self.encodeFile(self.originalFile)
+		input_files = []
+		converted_files = []
+		share_links = []
 
-		if self.outputDir:
+		if self.inputPath.is_dir():
+			input_files = self.inputPath.listfiles(self.batchExtensions)
+		elif self.inputPath.is_file():
+			input_files.append(self.inputPath)
+		else:
+			print(F"The input {self.inputPath} is not a file or a folder.")
+			exit(1)
+
+		# Either move them while encoding or after, I decided to do encoding first
+		# this way if the output Path is on the same Disk as the input file
+		# It will put less strain on it (if slow HDD or network Mount)
+
+		for in_file in input_files:
+			converted_files.append(self.encodeFile(in_file))
+
+		for out_file in converted_files:
 			print(F"Moving output file to: {self.outputDir}")
-			new_output_file_path = self.outputDir.joinpath(output_file_path.name)
-			shutil.move(output_file_path, new_output_file_path)
+			new_output_file_path = self.outputDir.joinpath(out_file.name)
+			shutil.move(out_file, new_output_file_path)
 
 			if self.copyLink:
-				url = self.baseUrl.format(file_name=new_output_file_path.name)
-				print(F"Copying URL to clip-board: {url}")
-				pyperclip.copy(url)
+				share_links.append(self.baseUrl.format(file_name=new_output_file_path.name))
+
+		if len(share_links):
+			print(F"Copying URL(s) to clip-board: ")
+			print("\n\t- " + "\n\t- ".join(share_links))
+			pyperclip.copy(os.linesep.join(share_links))
 
 class Path(pathlib.Path): # Part of https://gist.github.com/DeadSix27/036810df93804d02b962c0aec8d08b59
 	_flavour = pathlib._windows_flavour if os.name == 'nt' else pathlib._posix_flavour
@@ -461,7 +499,7 @@ if __name__ == "__main__":
 		HAVE_PYPERCLIP = False
 
 	if len(sys.argv) >= 2:
-		file_path = sys.argv[1]
+		input_path = sys.argv[1]
 		start_time = None
 		end_time = None
 		if len(sys.argv) == 3:
@@ -470,7 +508,7 @@ if __name__ == "__main__":
 			start_time = sys.argv[2]
 			end_time = sys.argv[3]
 
-		OpusMaker(file_path, start_time, end_time,
+		OpusMaker(input_path, start_time, end_time,
 			output_dir=OUTPUT_PATH,
 			copy_link=COPY_SHARE_LINK,
 			base_url=BASE_URL,
@@ -480,6 +518,7 @@ if __name__ == "__main__":
 			have_mime=HAVE_MIME,
 			ignore_mime=IGNORE_MIME,
 			have_pyperclip=HAVE_PYPERCLIP,
+			batch_extensions=BATCH_EXTENSIONS
 		)
 	else:
 		print("Syntax: opus <file> [<start_time> [<end_time]]")
