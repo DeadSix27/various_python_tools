@@ -471,12 +471,12 @@ class Path(pathlib.Path): # Part of https://gist.github.com/DeadSix27/036810df93
 
 if __name__ == '__main__':
 
-	def printResutls(results):
-		if len(results):
-			for x in results:
+	def printResutls(results: DFindResultList):
+		if results.Count > 0:
+			for x in results.List:
 				print(x.FullPath)
 		else:
-			print(F"Error: Found nothing for: '{args.search}', maybe try re-indexing via the argument: --index")
+			print(F"Error: Found nothing for: '{results.OriginalSearch}', maybe try re-indexing via the argument: --index")
 			exit(1)
 
 	SCRIPT_DIR = Path(__file__).parent
@@ -518,7 +518,7 @@ if __name__ == '__main__':
 	# the latter is a far bigger burden to me.
 	#
 	if len(sys.argv) >= 2 and sys.argv[1] not in ("search", "top") and not sys.argv[1].startswith("-"):
-		printResutls(find(" ".join(sys.argv[1:]), False, False).List)
+		printResutls(find(" ".join(sys.argv[1:]), False, False))
 		exit()
 	# ####
 
@@ -540,7 +540,7 @@ if __name__ == '__main__':
 		if args.withUi:
 			showUi(find(args.search, args.noWildCard, args.caseSensitive))
 		else:
-			printResutls(find(args.search, args.noWildCard, args.caseSensitive).List)
+			printResutls(find(args.search, args.noWildCard, args.caseSensitive))
 
 	elif args.which == "top_p":
 		top(args.type, args.max, args.asc)
