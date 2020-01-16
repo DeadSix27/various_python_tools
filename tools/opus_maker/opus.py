@@ -122,7 +122,22 @@ WITH_COVER = True
 # When batch-encoding a folder, every file with an extension not in this list will be ignored.
 #
 # Default: ('.mkv', '.mka', '.mp4', '.flac', '.m4a', '.mp3', '.aac', '.wav', '.oga', '.ogg', '.alac')
+#
 BATCH_EXTENSIONS = ('.mkv', '.mka', '.mp4', '.flac', '.m4a', '.mp3', '.aac', '.wav', '.oga', '.ogg', '.alac')
+
+#
+# If set to True, the script will overwrite the target files. If set to False it will append increasing numbers to the filenames if existing.
+#
+# Default: False
+#
+OVERWRITE_EXISTING = False
+
+#
+# Whether to append the selected time-region to the output filename. Example: Weeb_Music_0-40_0-24.flac
+#
+# Default: True
+#
+APPEND_TIME = True
 
 
 # ########################### CODE ############################
@@ -314,6 +329,8 @@ class OpusMaker:
 		ignore_mime: bool = None,
 		have_pyperclip: bool = None,
 		batch_extensions: bool = None,
+		overwrite_existing: bool = None,
+		append_time: bool = None,
 	) -> None:
 		self.extractCoverFromFile = self.convertCoverToJpg
 		errors = []
@@ -326,6 +343,8 @@ class OpusMaker:
 		self.withCover = with_cover
 		self.ignoreMime = ignore_mime
 		self.batchExtensions = batch_extensions
+		self.overwriteExisting = overwrite_existing
+		self.appendTime = append_time
 
 		# Commandline args
 		self.startTime = start_time
@@ -403,6 +422,26 @@ class OpusMaker:
 		for out_file in converted_files:
 			print(F"Moving output file to: {self.outputDir}")
 			new_output_file_path = self.outputDir.joinpath(out_file.name)
+
+			if self.appendTime:
+				if self.startTime:
+					new_output_file_path = new_output_file_path.append_stem(F"_{self.startTime.replace(':', '-')}")
+					if self.endTime:
+						new_output_file_path = new_output_file_path.append_stem("_")
+				if self.endTime:
+					if not self.startTime:
+						new_output_file_path = new_output_file_path.append_stem("0-00_")
+					new_output_file_path = new_output_file_path.append_stem(F"{self.endTime.replace(':', '-')}")
+
+			if not self.overwriteExisting: # re-think logic and combine with encodeFile()
+				if new_output_file_path.exists():
+					new_output_file_path_append = 1
+					while new_output_file_path.exists():
+						if new_output_file_path_append >= 10000:
+							raise Exception("Failed to find suitable alternative name for output file")
+						new_output_file_path = new_output_file_path.append_stem(F"_{new_output_file_path_append}")
+						new_output_file_path_append += 1
+
 			shutil.move(out_file, new_output_file_path)
 
 			if self.copyLink:
@@ -518,7 +557,9 @@ if __name__ == "__main__":
 			have_mime=HAVE_MIME,
 			ignore_mime=IGNORE_MIME,
 			have_pyperclip=HAVE_PYPERCLIP,
-			batch_extensions=BATCH_EXTENSIONS
+			batch_extensions=BATCH_EXTENSIONS,
+			overwrite_existing=OVERWRITE_EXISTING,
+			append_time=APPEND_TIME
 		)
 	else:
 		print("Syntax: opus <file> [<start_time> [<end_time]]")
