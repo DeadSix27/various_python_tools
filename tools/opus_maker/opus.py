@@ -155,32 +155,32 @@ import sys
 import shutil
 
 class OpusMaker:
-	def convertCoverToJpg(self, file_path: Path) -> Path:
-		temp_out_path = file_path.change_name(file_path.stem + "opusthing_xyz.jpg")
+	def compressCover(self, file_path: Path) -> Path:
+		print(F"Compressing cover {file_path}...")
+		temp_out_path = file_path.change_name(F"{abs(hash(file_path.stem))}_opusthing_xyz.jpg")
 		cmd = [
 			'ffmpeg',
 			'-y',
 			'-i',
 			str(file_path),
 			'-an',
-			'-compression_level',
-			'75',
 			'-pix_fmt',
 			'yuvj444p',
-			'-s',
-			'300x300',
 			'-c:v',
 			'mjpeg',
+			'-compression_level',
+			'75',
+			'-s',
+			'300x300',
 			str(temp_out_path),
 		]
 		try:
 			_ = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
 		except subprocess.CalledProcessError as e:
 			print(e.output.decode("utf-8"))
-			print(F"\nConverting Cover '{file_path}' to JPG Failed, error above, command was:")
+			print(F"\n Compressing Cover '{file_path}' Failed, error above, command was:")
 			print(subprocess.list2cmdline(cmd))
 			exit(1)
-
 		return temp_out_path
 
 	def getFfprobe(self, file_path: Path) -> dict:
@@ -224,7 +224,7 @@ class OpusMaker:
 
 	def getCoverFromFile(self, file_path: Path) -> Path:
 		if self.hasCover(file_path):
-			return self.extractCoverFromFile(file_path)
+			return self.compressCover(file_path)
 		return None
 
 	def encodeFile(self, original_file: Path) -> Path:
@@ -245,10 +245,21 @@ class OpusMaker:
 			cover = self.getCoverFromFile(original_file)
 			if not cover:
 				cover = self.getCoverFromFolder(original_file)
-				print(F"Using cover from folder: {cover}")
-				cover = self.convertCoverToJpg(cover)
+				if cover:
+					cover = self.compressCover(cover)
+					if not cover.exists():
+						print("Cover compression failed, maybe missing WebP or JPEG support in ffmpeg? Or corrupt cover image file.")
+						exit(1)
+					else:
+						print(F"Using cover file '{cover}' in folder: {cover.parent}")
 			else:
-				print(F"Using cover from file: {original_file}")
+				if not cover.exists():
+					print("Cover compression failed, maybe missing WebP or JPEG support in ffmpeg? Or corrupt audio file.")
+					exit(1)
+				else:
+					print(F"Using cover '{cover}' from audio metadata in: {original_file}")
+		else:
+			print("No cover found.")
 
 		cmd1 = [
 			'ffmpeg',
@@ -294,8 +305,8 @@ class OpusMaker:
 			erange = F" from start to {end_time}"
 
 		print(F"Encoding{erange} into file {output_file_path}...")
-		p = subprocess.Popen(cmd1, shell=False, bufsize=0, stderr=subprocess.DEVNULL, stdout=subprocess.PIPE)
-		p2 = subprocess.Popen(cmd2, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stdin=p.stdout)
+		p = subprocess.Popen(cmd1, shell=False, bufsize=0, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+		p2 = subprocess.Popen(cmd2, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, stdin=p.stdout)
 		stdo, stde = p2.communicate()
 
 		if cover:
@@ -332,7 +343,6 @@ class OpusMaker:
 		overwrite_existing: bool = None,
 		append_time: bool = None,
 	) -> None:
-		self.extractCoverFromFile = self.convertCoverToJpg
 		errors = []
 		# Settings
 		self.opusVbr = opus_vbr
