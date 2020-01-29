@@ -446,10 +446,11 @@ class OpusMaker:
 			if not self.overwriteExisting: # re-think logic and combine with encodeFile()
 				if new_output_file_path.exists():
 					new_output_file_path_append = 1
+					new_output_file_path_b = new_output_file_path
 					while new_output_file_path.exists():
 						if new_output_file_path_append >= 10000:
 							raise Exception("Failed to find suitable alternative name for output file")
-						new_output_file_path = new_output_file_path.append_stem(F"_{new_output_file_path_append}")
+						new_output_file_path = new_output_file_path_b.append_stem(F"_{new_output_file_path_append}")
 						new_output_file_path_append += 1
 
 			shutil.move(out_file, new_output_file_path)
